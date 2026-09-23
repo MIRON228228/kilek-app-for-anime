@@ -16,7 +16,7 @@ try:
 except ImportError:
     HAS_DISCORD = False
 
-DISCORD_CLIENT_ID = "1552329269198463016"
+DISCORD_CLIENT_ID = "ВСТАВЬТЕ_СЮДА_ВАШ_APPLICATION_ID"
 
 user32 = ctypes.windll.user32
 GA_ROOT = 2
@@ -30,7 +30,8 @@ CONFIG_PATH = os.path.join(APP_DIR, "config.json")
 
 os.environ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = (
     "--autoplay-policy=no-user-gesture-required "
-    "--enable-features=OverlayScrollbar"
+    "--enable-features=OverlayScrollbar,DnsOverHttps "
+    "--dns-over-https-templates=https://dns.adguard-dns.com/dns-query"
 )
 
 DESKTOP_USER_AGENT = (
@@ -40,6 +41,7 @@ DESKTOP_USER_AGENT = (
 )
 
 DEFAULT_CONFIG = {
+    "first_run": True,
     "start_url": "https://old.yummyani.me",
     "intro_duration": 5.0,
     "intro_audio_path": "",
@@ -117,7 +119,7 @@ def discord_rpc_worker():
             if "127.0.0.1" in current_url:
                 rpc.update(
                     details="Запуск kalel...",
-                    state="Просмотр заставки",
+                    state="Загрузка",
                     large_image="cat",
                     large_text="kalel Player",
                     start=app_start_time
@@ -160,17 +162,24 @@ def discord_rpc_worker():
                 timer = app_start_time
 
             buttons = None
-            if current_url.startswith("http"):
+            if current_url.startswith("http") and "127.0.0.1" not in current_url:
                 buttons = [{"label": "Смотреть вместе", "url": current_url}]
 
-            rpc.update(
-                details=details_text,
-                state=state_text,
-                large_image="cat",
-                large_text="kalel Anime Player",
-                start=timer,
-                buttons=buttons
-            )
+            try:
+                rpc.update(
+                    details=details_text,
+                    state=state_text,
+                    large_image="cat",
+                    large_text="kalel Anime Player",
+                    start=timer,
+                    buttons=buttons
+                )
+            except Exception:
+                rpc.update(
+                    details=details_text,
+                    state=state_text,
+                    start=timer
+                )
 
         except Exception:
             rpc = None
@@ -185,7 +194,116 @@ class SplashServerHandler(http.server.BaseHTTPRequestHandler):
         cfg = load_config()
         path = self.path.split("?")[0]
 
-        if path in ["/", "/splash"]:
+        if path == "/welcome":
+            html = """<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Начальная настройка — kalel</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+body {
+    background:#0f0f13;
+    color:#f3f4f6;
+    width:100vw; height:100vh;
+    display:flex; justify-content:center; align-items:center;
+    user-select:none;
+}
+.box {
+    background:#171821;
+    border:1px solid #2b2d3c;
+    border-radius:12px;
+    padding:28px;
+    width:460px;
+    box-shadow:0 12px 30px rgba(0,0,0,0.5);
+    text-align:center;
+}
+h2 { font-size:22px; margin-bottom:8px; color:#fff; }
+p { font-size:13px; color:#9ca3af; margin-bottom:20px; line-height:1.4; }
+.btn-primary {
+    width:100%;
+    background:#8b5cf6;
+    color:#fff;
+    border:none;
+    border-radius:8px;
+    padding:12px;
+    font-size:14px;
+    font-weight:600;
+    cursor:pointer;
+    margin-bottom:16px;
+    transition:background 0.15s;
+}
+.btn-primary:hover { background:#7c3aed; }
+.divider {
+    display:flex; align-items:center; text-align:center;
+    color:#6b7280; font-size:12px; margin:16px 0;
+}
+.divider::before, .divider::after {
+    content:''; flex:1; border-bottom:1px solid #2b2d3c;
+}
+.divider::before { margin-right:8px; }
+.divider::after { margin-left:8px; }
+.input-row { display:flex; gap:8px; }
+input {
+    flex:1;
+    background:#0d0d12;
+    border:1px solid #2b2d3c;
+    border-radius:6px;
+    color:#fff;
+    padding:10px 12px;
+    font-size:13px;
+    outline:none;
+}
+input:focus { border-color:#8b5cf6; }
+.btn-sec {
+    background:#262737;
+    color:#fff;
+    border:none;
+    border-radius:6px;
+    padding:10px 14px;
+    font-size:13px;
+    font-weight:500;
+    cursor:pointer;
+    transition:background 0.15s;
+}
+.btn-sec:hover { background:#34364c; }
+</style>
+</head>
+<body>
+<div class="box">
+    <h2>Добро пожаловать в kalel</h2>
+    <p>Выберите стартовый сайт, который будет открываться по умолчанию при каждом запуске программы:</p>
+    <button class="btn-primary" onclick="chooseYummy()">Открыть YummyAnime (old.yummyani.me)</button>
+    <div class="divider">или задайте свой сайт</div>
+    <div class="input-row">
+        <input type="text" id="customUrl" placeholder="например: youtube.com" onkeydown="if(event.key==='Enter') chooseCustom()" />
+        <button class="btn-sec" onclick="chooseCustom()">Сохранить</button>
+    </div>
+</div>
+<script>
+async function chooseYummy() {
+    if (window.pywebview && window.pywebview.api) {
+        await window.pywebview.api.finish_first_run("https://old.yummyani.me");
+    }
+}
+async function chooseCustom() {
+    const val = document.getElementById('customUrl').value;
+    if (!val || !val.trim()) return;
+    if (window.pywebview && window.pywebview.api) {
+        await window.pywebview.api.finish_first_run(val.trim());
+    }
+}
+</script>
+</body>
+</html>"""
+            data = html.encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        elif path in ["/", "/splash"]:
             anim_path = cfg.get("intro_anim_path", "")
             audio_path = cfg.get("intro_audio_path", "")
             duration = float(cfg.get("intro_duration", 5.0))
@@ -574,6 +692,17 @@ SETTINGS_HTML = """
 main_window = None
 settings_window = None
 
+class MainAPI:
+    def finish_first_run(self, url):
+        norm = normalize_url(url) or DEFAULT_CONFIG["start_url"]
+        cfg = load_config()
+        cfg["first_run"] = False
+        cfg["start_url"] = norm
+        save_config(cfg)
+        if main_window:
+            main_window.load_url(norm)
+        return True
+
 class SettingsAPI:
     def get_data(self):
         cfg = load_config()
@@ -727,6 +856,50 @@ def native_hotkeys_listener():
         else:
             f5_down = False
 
+def inject_adblock(window):
+    script = """
+    (function() {
+        if (window.__adguard_injected) return;
+        window.__adguard_injected = true;
+
+        var origOpen = window.open;
+        window.open = function(url) {
+            if (!url) return null;
+            var u = String(url).toLowerCase();
+            if (u.includes('1win') || u.includes('1xbet') || u.includes('bet') || 
+                u.includes('casino') || u.includes('vulkan') || u.includes('click') || 
+                u.includes('pop') || u.includes('track') || u.includes('ad')) {
+                return null;
+            }
+            return origOpen.apply(this, arguments);
+        };
+
+        var css = `
+            [id*="yandex_rtb"], [class*="yandex-rtb"],
+            [id*="google_ads"], [class*="google_ads"],
+            iframe[src*="an.yandex.ru"], iframe[src*="doubleclick"],
+            iframe[src*="adroll"], iframe[src*="exoclick"],
+            .banner-ad, .ad-banner, .advertisement,
+            [class*="clickunder"], [id*="clickunder"],
+            [class*="popunder"], [id*="popunder"] {
+                display: none !important;
+                visibility: hidden !important;
+                height: 0 !important;
+                width: 0 !important;
+                opacity: 0 !important;
+                pointer-events: none !important;
+            }
+        `;
+        var style = document.createElement('style');
+        style.innerHTML = css;
+        (document.head || document.documentElement).appendChild(style);
+    })();
+    """
+    try:
+        window.run_js(script)
+    except Exception:
+        pass
+
 def start_watchdog_timer(target_url, timeout_sec):
     def timer_worker():
         time.sleep(timeout_sec + 0.8)
@@ -749,6 +922,7 @@ def main():
     time.sleep(0.1)
 
     config = load_config()
+    is_first_run = config.get("first_run", True)
     real_start_url = config.get("start_url", DEFAULT_CONFIG["start_url"])
     intro_audio = config.get("intro_audio_path", "")
     intro_anim = config.get("intro_anim_path", "")
@@ -757,26 +931,25 @@ def main():
     has_audio = intro_audio and os.path.exists(intro_audio)
     has_anim = intro_anim and os.path.exists(intro_anim)
 
-    if (has_audio or has_anim) and intro_duration > 0:
-        splash_url = f"http://127.0.0.1:{local_port}/splash"
-        main_window = webview.create_window(
-            title="kalel",
-            url=splash_url,
-            width=1280,
-            height=820,
-            min_size=(640, 480),
-            background_color="#0f0f13"
-        )
+    if is_first_run:
+        target_initial_url = f"http://127.0.0.1:{local_port}/welcome"
+    elif (has_audio or has_anim) and intro_duration > 0:
+        target_initial_url = f"http://127.0.0.1:{local_port}/splash"
         start_watchdog_timer(real_start_url, intro_duration)
     else:
-        main_window = webview.create_window(
-            title="kalel",
-            url=real_start_url,
-            width=1280,
-            height=820,
-            min_size=(640, 480),
-            background_color="#0f0f13"
-        )
+        target_initial_url = real_start_url
+
+    main_window = webview.create_window(
+        title="kalel",
+        url=target_initial_url,
+        js_api=MainAPI(),
+        width=1280,
+        height=820,
+        min_size=(640, 480),
+        background_color="#0f0f13"
+    )
+
+    main_window.events.loaded += lambda: inject_adblock(main_window)
 
     webview.start(
         storage_path=DATA_DIR,
